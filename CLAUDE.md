@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PromptDrop is a community platform where users share AI prompts and support creators via donations. Built with Next.js 14 (App Router), Supabase (Auth + Postgres), and Tailwind CSS.
+PromptDrop is a community platform where users share AI prompts and support creators via donations. Built with Next.js 14.2 (App Router), Supabase (Auth + Postgres via @supabase/ssr), and Tailwind CSS 3.
 
 ## Commands
 
@@ -35,6 +35,7 @@ Schema SQL is in `supabase/schema.sql`. Includes RLS policies and a trigger to a
   - `src/app/complete-profile/` - New user profile setup
   - `src/app/auth/callback/` - OAuth callback route
   - `src/app/auth/auth-code-error/` - Auth error page
+  - `src/app/not-found.tsx` - Custom 404 page
 - `src/components/` - React components (PromptCard, UpvoteButton, CopyButton, CategoryTabs, SearchBar, Header)
 - `src/lib/supabase/` - Supabase clients (client.ts for browser, server.ts for server components, middleware.ts for session refresh)
 - `src/lib/types.ts` - TypeScript types and constants (Category, AIModel, etc.)
@@ -50,6 +51,9 @@ Schema SQL is in `supabase/schema.sql`. Includes RLS policies and a trigger to a
 - Server components use `createClient()` from `@/lib/supabase/server`
 - Client components use `createClient()` from `@/lib/supabase/client`
 - Pages with database queries use `export const dynamic = 'force-dynamic'`
+
+### Image Hosting
+`next.config.mjs` allows remote images from `lh3.googleusercontent.com` (Google avatars) and `avatars.githubusercontent.com` (GitHub avatars).
 
 ## Environment Variables
 

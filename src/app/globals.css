@@ -17,11 +17,17 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Prompt text styling */
+.prompt-text {
+  @apply font-mono text-sm bg-gray-100 dark:bg-gray-800 p-4 rounded-lg whitespace-pre-wrap;
 }
+
+/* Category badge colors */
+.badge-coding { @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200; }
+.badge-writing { @apply bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200; }
+.badge-analysis { @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200; }
+.badge-creative { @apply bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200; }
+.badge-business { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200; }
+.badge-other { @apply bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200; }
