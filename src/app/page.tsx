@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { PromptCard } from '@/components/PromptCard';
 import { CategoryTabs } from '@/components/CategoryTabs';
-import { PromptWithUser, Category } from '@/lib/types';
+import { TypeTabs } from '@/components/TypeTabs';
+import { PromptWithUser, Category, PromptType } from '@/lib/types';
 import { Suspense } from 'react';
 
 export const dynamic = 'force-dynamic';
@@ -9,12 +10,13 @@ export const dynamic = 'force-dynamic';
 interface HomePageProps {
   searchParams: Promise<{
     category?: string;
+    type?: string;
     q?: string;
     sort?: 'upvotes' | 'recent';
   }>;
 }
 
-async function PromptList({ category, query, sort }: { category?: string; query?: string; sort?: string }) {
+async function PromptList({ category, type, query, sort }: { category?: string; type?: string; query?: string; sort?: string }) {
   const supabase = await createClient();
 
   // Get current user and their votes
@@ -29,9 +31,15 @@ async function PromptList({ category, query, sort }: { category?: string; query?
     promptsQuery = promptsQuery.eq('category', category as Category);
   }
 
-  // Apply search filter
-  if (query) {
-    promptsQuery = promptsQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+  // Apply type filter
+  if (type === 'prompt' || type === 'agent') {
+    promptsQuery = promptsQuery.eq('type', type as PromptType);
+  }
+
+  // Apply search filter (strip characters that would break the PostgREST or() syntax)
+  const safeQuery = query?.replace(/[,()%*\\]/g, ' ').trim();
+  if (safeQuery) {
+    promptsQuery = promptsQuery.or(`title.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%`);
   }
 
   // Apply sorting
@@ -61,8 +69,8 @@ async function PromptList({ category, query, sort }: { category?: string; query?
   if (!prompts || prompts.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
-        <p>No prompts found.</p>
-        <p className="text-sm mt-2">Be the first to submit one!</p>
+        <p>Nothing found.</p>
+        <p className="text-sm mt-2">Try a different filter, or be the first to submit one!</p>
       </div>
     );
   }
@@ -83,31 +91,49 @@ async function PromptList({ category, query, sort }: { category?: string; query?
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
-  const { category, q: query, sort } = params;
+  const { category, type, q: query, sort } = params;
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Prompts and agents worth reusing</h1>
+        <p className="mt-2 text-gray-600 dark:text-gray-400 max-w-2xl">
+          Browse community-shared AI prompts and agent definitions, copy what works, and support the people who made them.
+        </p>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Suspense fallback={<div className="h-10" />}>
-          <CategoryTabs />
+          <TypeTabs />
         </Suspense>
 
         <div className="flex gap-2">
-          <SortButton sort={sort} value="upvotes" label="Top" />
-          <SortButton sort={sort} value="recent" label="Recent" />
+          <SortButton params={params} value="upvotes" label="Top" />
+          <SortButton params={params} value="recent" label="Recent" />
         </div>
       </div>
 
+      <Suspense fallback={<div className="h-10" />}>
+        <CategoryTabs />
+      </Suspense>
+
       <Suspense fallback={<PromptListSkeleton />}>
-        <PromptList category={category} query={query} sort={sort} />
+        <PromptList category={category} type={type} query={query} sort={sort} />
       </Suspense>
     </div>
   );
 }
 
-function SortButton({ sort, value, label }: { sort?: string; value: string; label: string }) {
-  const isActive = sort === value || (!sort && value === 'upvotes');
-  const href = value === 'upvotes' ? '/' : `/?sort=${value}`;
+function SortButton({ params, value, label }: { params: Record<string, string | undefined>; value: string; label: string }) {
+  const isActive = params.sort === value || (!params.sort && value === 'upvotes');
+  // Keep the other filters when switching sort order
+  const next = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val && key !== 'sort') next.set(key, val);
+  }
+  if (value !== 'upvotes') next.set('sort', value);
+  const qs = next.toString();
+  const href = qs ? `/?${qs}` : '/';
 
   return (
     <a

@@ -14,18 +14,19 @@ npm run build    # Production build
 npm run lint     # Run ESLint
 npm run start    # Start production server
 
-# Seed database with prompts from Hugging Face
-npx tsx scripts/seed-prompts.ts
+# Import prompts/agents from public sources (see Importer below)
+npm run import -- --source all [--dry-run]
+npx tsx scripts/seed-prompts.ts   # Hugging Face only (legacy wrapper)
 ```
 
 ## Architecture
 
 ### Database Schema (Supabase)
 - **users** - Profile data (linked to auth.users via id)
-- **prompts** - User-submitted prompts with title, description, prompt_text, category, ai_models array
+- **prompts** - Prompts and agents (`type` = `prompt` | `agent`) with title, description, prompt_text, category, ai_models array. Agent-only: agent_platform, agent_tools, usage_notes. Provenance for imported rows: imported, source_url, source_license, original_author, content_hash (unique, dedupe key)
 - **votes** - Upvotes (unique per user/prompt pair, triggers update upvote count)
 
-Schema SQL is in `supabase/schema.sql`. Includes RLS policies and a trigger to auto-update prompt upvote counts.
+Schema SQL is in `supabase/schema.sql`; incremental changes for existing databases are in `supabase/migrations/`. RLS only lets users insert/update rows with `imported = false`; importers use the service role. Includes RLS policies and a trigger to auto-update prompt upvote counts.
 
 ### Key Directories
 - `src/app/` - Next.js App Router pages
@@ -40,7 +41,8 @@ Schema SQL is in `supabase/schema.sql`. Includes RLS policies and a trigger to a
 - `src/lib/supabase/` - Supabase clients (client.ts for browser, server.ts for server components, middleware.ts for session refresh)
 - `src/lib/types.ts` - TypeScript types and constants (Category, AIModel, etc.)
 - `src/middleware.ts` - Next.js middleware for Supabase session refresh
-- `scripts/` - Database seeding script
+- `scripts/` - `import.ts` (importer CLI), `importers/` (sources, parsing helpers), `seed-prompts.ts` (legacy wrapper)
+- `src/app/takedown/` - Removal-request page for authors of imported content
 
 ### Auth Flow
 1. Google OAuth via Supabase (`/auth/callback` handles code exchange)
@@ -71,3 +73,7 @@ Valid categories: `coding`, `writing`, `analysis`, `creative`, `business`, `othe
 ## AI Models
 
 Valid model tags: `claude`, `gpt4`, `gemini`, `llama`, `other`
+
+## Importer
+
+`scripts/import.ts` pulls from Hugging Face and GitHub, attributes each item to its original author, and stores source URL + SPDX license. GitHub repos are only imported when their license is on the allowlist in `scripts/importers/sources/github.ts`. Repos to crawl are listed in the same file (prompt CSV/markdown files, Claude Code subagents, Cursor rules). Dedupes on `content_hash`, so re-runs are safe. Optional `GITHUB_TOKEN` raises API rate limits. Optional `NEXT_PUBLIC_CONTACT_EMAIL` is shown on /takedown.

@@ -24,7 +24,19 @@ create table public.prompts (
   category text not null check (category in ('coding', 'writing', 'analysis', 'creative', 'business', 'other')),
   ai_models text[] not null default '{}',
   upvotes integer default 0 not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  -- Content type: a plain prompt or an agent definition (system prompt + tools)
+  type text not null default 'prompt' check (type in ('prompt', 'agent')),
+  -- Provenance for imported content
+  source_url text,
+  source_license text,
+  original_author text,
+  imported boolean not null default false,
+  content_hash text unique,
+  -- Agent-only fields
+  agent_platform text check (agent_platform is null or agent_platform in ('claude-code', 'cursor', 'mcp', 'other')),
+  agent_tools text[] not null default '{}',
+  usage_notes text
 );
 
 -- Votes table
@@ -41,6 +53,8 @@ create index prompts_user_id_idx on public.prompts(user_id);
 create index prompts_category_idx on public.prompts(category);
 create index prompts_upvotes_idx on public.prompts(upvotes desc);
 create index prompts_created_at_idx on public.prompts(created_at desc);
+create index prompts_type_idx on public.prompts(type);
+create index prompts_imported_idx on public.prompts(imported);
 create index votes_user_id_idx on public.votes(user_id);
 create index votes_prompt_id_idx on public.votes(prompt_id);
 
@@ -67,10 +81,10 @@ create policy "Prompts are viewable by everyone" on public.prompts
   for select using (true);
 
 create policy "Authenticated users can create prompts" on public.prompts
-  for insert with check (auth.uid() = user_id);
+  for insert with check (auth.uid() = user_id and imported = false);
 
 create policy "Users can update own prompts" on public.prompts
-  for update using (auth.uid() = user_id);
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id and imported = false);
 
 create policy "Users can delete own prompts" on public.prompts
   for delete using (auth.uid() = user_id);

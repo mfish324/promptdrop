@@ -68,7 +68,7 @@ export default async function UserPage({ params }: UserPageProps) {
           <h1 className="text-2xl font-bold">@{profile.username}</h1>
           <div className="flex gap-6 mt-2 text-gray-600 dark:text-gray-400">
             <div>
-              <span className="font-semibold text-foreground">{prompts?.length || 0}</span> prompts
+              <span className="font-semibold text-foreground">{prompts?.length || 0}</span> submissions
             </div>
             <div>
               <span className="font-semibold text-foreground">{totalUpvotes}</span> upvotes
@@ -95,7 +95,7 @@ export default async function UserPage({ params }: UserPageProps) {
         </div>
       </div>
 
-      <h2 className="text-lg font-semibold mb-4">Prompts by @{profile.username}</h2>
+      <h2 className="text-lg font-semibold mb-4">Submissions by @{profile.username}</h2>
 
       {prompts && prompts.length > 0 ? (
         <div className="space-y-4">
@@ -109,7 +109,7 @@ export default async function UserPage({ params }: UserPageProps) {
           ))}
         </div>
       ) : (
-        <p className="text-gray-500 text-center py-8">No prompts yet</p>
+        <p className="text-gray-500 text-center py-8">Nothing submitted yet</p>
       )}
     </div>
   );

@@ -3,12 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { CATEGORIES, AI_MODELS, Category, AIModel } from '@/lib/types';
+import { CATEGORIES, AI_MODELS, AGENT_PLATFORMS, PROMPT_TYPES, Category, AIModel, PromptType, AgentPlatform } from '@/lib/types';
 
 export default function SubmitPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  const [type, setType] = useState<PromptType>('prompt');
+  const [agentPlatform, setAgentPlatform] = useState<AgentPlatform>('claude-code');
+  const [agentTools, setAgentTools] = useState('');
+  const [usageNotes, setUsageNotes] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [promptText, setPromptText] = useState('');
@@ -26,6 +30,8 @@ export default function SubmitPage() {
     );
   };
 
+  const isAgent = type === 'agent';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -34,7 +40,7 @@ export default function SubmitPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        setError('You must be logged in to submit a prompt');
+        setError(`You must be logged in to submit ${isAgent ? 'an agent' : 'a prompt'}`);
         setIsSubmitting(false);
         return;
       }
@@ -60,6 +66,12 @@ export default function SubmitPage() {
           prompt_text: promptText.trim(),
           category,
           ai_models: aiModels.length > 0 ? aiModels : ['other'],
+          type,
+          ...(isAgent && {
+            agent_platform: agentPlatform,
+            agent_tools: agentTools.split(',').map(t => t.trim()).filter(Boolean),
+            usage_notes: usageNotes.trim() || null,
+          }),
         });
 
       if (insertError) {
@@ -70,7 +82,7 @@ export default function SubmitPage() {
       router.refresh();
     } catch (err) {
       console.error('Submit error:', err);
-      setError('Failed to submit prompt. Please try again.');
+      setError(`Failed to submit ${isAgent ? 'agent' : 'prompt'}. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -78,7 +90,24 @@ export default function SubmitPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Submit a Prompt</h1>
+      <h1 className="text-2xl font-bold mb-6">Submit {isAgent ? 'an Agent' : 'a Prompt'}</h1>
+
+      <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-800 p-1 mb-6">
+        {PROMPT_TYPES.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => setType(t.value)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              type === t.value
+                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {error && (
         <div className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
@@ -98,7 +127,7 @@ export default function SubmitPage() {
             onChange={(e) => setTitle(e.target.value)}
             maxLength={100}
             required
-            placeholder="E.g., Code Review Assistant"
+            placeholder={isAgent ? 'E.g., Security Review Agent' : 'E.g., Code Review Assistant'}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <p className="text-xs text-gray-500 mt-1">{title.length}/100 characters</p>
@@ -114,14 +143,14 @@ export default function SubmitPage() {
             onChange={(e) => setDescription(e.target.value)}
             required
             rows={3}
-            placeholder="What does this prompt do? When should someone use it?"
+            placeholder={isAgent ? 'What does this agent do? When should someone use it?' : 'What does this prompt do? When should someone use it?'}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
           <label htmlFor="promptText" className="block text-sm font-medium mb-2">
-            Prompt Text <span className="text-red-500">*</span>
+            {isAgent ? 'Agent Definition (system prompt / rules)' : 'Prompt Text'} <span className="text-red-500">*</span>
           </label>
           <textarea
             id="promptText"
@@ -129,7 +158,7 @@ export default function SubmitPage() {
             onChange={(e) => setPromptText(e.target.value)}
             required
             rows={8}
-            placeholder="Paste your prompt here..."
+            placeholder={isAgent ? 'Paste the system prompt or rules here...' : 'Paste your prompt here...'}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
           />
         </div>
@@ -174,6 +203,54 @@ export default function SubmitPage() {
           </div>
         </div>
 
+        {isAgent && (
+          <>
+            <div>
+              <label htmlFor="agentPlatform" className="block text-sm font-medium mb-2">
+                Platform
+              </label>
+              <select
+                id="agentPlatform"
+                value={agentPlatform}
+                onChange={(e) => setAgentPlatform(e.target.value as AgentPlatform)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {AGENT_PLATFORMS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="agentTools" className="block text-sm font-medium mb-2">
+                Tools <span className="text-gray-500 font-normal">(comma-separated, optional)</span>
+              </label>
+              <input
+                type="text"
+                id="agentTools"
+                value={agentTools}
+                onChange={(e) => setAgentTools(e.target.value)}
+                placeholder="Read, Grep, Bash, github-mcp"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="usageNotes" className="block text-sm font-medium mb-2">
+                Setup / usage notes <span className="text-gray-500 font-normal">(optional)</span>
+              </label>
+              <textarea
+                id="usageNotes"
+                value={usageNotes}
+                onChange={(e) => setUsageNotes(e.target.value)}
+                rows={3}
+                placeholder="Where to save it, required MCP servers, example invocation..."
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </>
+        )}
+
         <div className="flex gap-4">
           <button
             type="button"
@@ -187,7 +264,7 @@ export default function SubmitPage() {
             disabled={isSubmitting || !title || !description || !promptText}
             className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Prompt'}
+            {isSubmitting ? 'Submitting...' : `Submit ${isAgent ? 'Agent' : 'Prompt'}`}
           </button>
         </div>
       </form>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import Link from "next/link";
 import { Header } from "@/components/Header";
 
 const geistSans = localFont({
@@ -33,6 +34,9 @@ export default function RootLayout({
         <main className="container mx-auto px-4 py-8">
           {children}
         </main>
+        <footer className="container mx-auto px-4 py-8 text-sm text-gray-500">
+          <Link href="/takedown" className="hover:underline">Request removal of imported content</Link>
+        </footer>
       </body>
     </html>
   );

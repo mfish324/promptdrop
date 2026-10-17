@@ -47,9 +47,24 @@ export function PromptCard({ prompt, userVoted = false, isLoggedIn = false }: Pr
               @{prompt.user?.username}
             </Link>
 
+            {prompt.type === 'agent' && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium badge-agent">
+                agent{prompt.agent_platform ? ` · ${prompt.agent_platform}` : ''}
+              </span>
+            )}
+
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${categoryBadgeClass[prompt.category]}`}>
               {prompt.category}
             </span>
+
+            {prompt.imported && (
+              <span
+                className="px-2 py-0.5 rounded text-xs badge-imported"
+                title={`Imported from ${prompt.source_url}`}
+              >
+                imported{prompt.original_author ? ` · ${prompt.original_author}` : ''}
+              </span>
+            )}
 
             <div className="flex gap-1">
               {prompt.ai_models.slice(0, 3).map((model) => (
