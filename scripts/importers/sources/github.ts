@@ -38,6 +38,12 @@ const REPOS: RepoConfig[] = [
   { repo: 'wshobson/agents', kind: 'agents' },
   { repo: 'VoltAgent/awesome-claude-code-subagents', kind: 'agents' },
   { repo: 'PatrickJS/awesome-cursorrules', kind: 'cursor-rules' },
+  { repo: 'sanjeed5/awesome-cursor-rules-mdc', kind: 'cursor-rules' },
+  { repo: 'lst97/claude-code-sub-agents', kind: 'agents' },
+  { repo: 'iannuttall/claude-agents', kind: 'agents' },
+  { repo: '0xfurai/claude-code-subagents', kind: 'agents' },
+  { repo: 'davepoon/buildwithclaude', kind: 'agents' },
+  { repo: 'abilzerian/LLM-Prompt-Library', kind: 'prompt-files' },
 ];
 
 const token = process.env.GITHUB_TOKEN;
@@ -179,12 +185,14 @@ async function* cursorRuleFiles(repo: RepoInfo, files: string[]): AsyncGenerator
     const rules = body.trim();
     if (rejectReason(rules)) continue;
 
+    // Frontmatter descriptions are full sentences, so derive the title from the path instead.
     const dir = path.basename(path.dirname(file));
-    const title = (
-      data.description && data.description.length <= 100
-        ? data.description
-        : titleFromPath(dir === '.' || dir === 'rules' ? file : dir)
-    ).substring(0, 100);
+    const stem = path.basename(file, path.extname(file));
+    const generic = ['', 'rules', 'rule', 'index', 'main', 'cursorrules'].includes(stem.toLowerCase());
+    const title = titleFromPath(generic && dir !== '.' ? dir : stem)
+      .replace(/\s*Cursorrules( Prompt File)?\s*/i, ' ')
+      .trim()
+      .substring(0, 100);
     yield {
       type: 'agent',
       title,

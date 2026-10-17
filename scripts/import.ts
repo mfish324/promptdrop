@@ -3,7 +3,12 @@
  * records provenance (source URL, license, original author), and dedupes by content hash.
  *
  * Usage:
- *   npx tsx scripts/import.ts [--source huggingface|github|all] [--repo owner/name] [--dry-run]
+ *   npx tsx scripts/import.ts [--source huggingface|github|all] [--repo owner/name] [--dry-run] [--enrich]
+ *
+ * --enrich asks Claude to pick the category and tidy the title/description of each new item
+ * (needs ANTHROPIC_API_KEY; roughly a few dollars per few thousand items). Items already in the
+ * database are skipped before enrichment, so re-runs only pay for new content. In a dry run it
+ * enriches a sample of 50 per source.
  *
  * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local.
  * Optional: GITHUB_TOKEN (raises the GitHub API rate limit from 60 to 5000 requests/hour).
@@ -14,6 +19,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { ImportItem, Source } from './importers/types';
 import { huggingface } from './importers/sources/huggingface';
 import { githubSource } from './importers/sources/github';
+import { enrich } from './importers/enrich';
 
 try {
   process.loadEnvFile('.env.local');
@@ -27,6 +33,7 @@ const flag = (name: string) => {
   return i === -1 ? undefined : args[i + 1] ?? '';
 };
 const dryRun = args.includes('--dry-run');
+const doEnrich = args.includes('--enrich');
 const sourceArg = flag('source') ?? 'all';
 const repoArg = flag('repo');
 
@@ -86,17 +93,38 @@ async function main() {
   let seen = 0;
   let sent = 0;
   const seenHashes = new Set<string>();
-  let batch: Record<string, unknown>[] = [];
+  let alreadyPresent = 0;
+  let batch: ImportItem[] = [];
+  const dryItems: ImportItem[] = [];
 
   const flush = async () => {
     if (batch.length === 0 || !supabase) return;
-    // ignoreDuplicates leaves existing rows untouched, so re-runs are safe.
-    const { error } = await supabase
-      .from('prompts')
-      .upsert(batch, { onConflict: 'content_hash', ignoreDuplicates: true });
-    if (error) console.error(`\n  batch failed: ${error.message}`);
-    else sent += batch.length;
+    const pending = batch;
     batch = [];
+
+    // Drop items already in the database so they are neither re-enriched nor re-sent.
+    const { data: existing, error: lookupError } = await supabase
+      .from('prompts')
+      .select('content_hash')
+      .in('content_hash', pending.map(i => i.content_hash));
+    if (lookupError) {
+      console.error(`\n  lookup failed: ${lookupError.message}`);
+      return;
+    }
+    const have = new Set((existing ?? []).map(r => r.content_hash as string));
+    const fresh = pending.filter(i => !have.has(i.content_hash));
+    alreadyPresent += pending.length - fresh.length;
+    if (fresh.length === 0) return;
+
+    if (doEnrich) await enrich(fresh);
+
+    // ignoreDuplicates keeps this safe if a row appears between the lookup and the insert.
+    const { error } = await supabase.from('prompts').upsert(
+      fresh.map(item => ({ ...item, user_id: systemUserId, imported: true })),
+      { onConflict: 'content_hash', ignoreDuplicates: true }
+    );
+    if (error) console.error(`\n  batch failed: ${error.message}`);
+    else sent += fresh.length;
   };
 
   for (const source of pickSources()) {
@@ -109,19 +137,28 @@ async function main() {
       sourceCount++;
 
       if (dryRun) {
-        console.log(`  [${item.type}/${item.category}] ${item.title} (${item.source_license}, ${item.original_author})`);
+        dryItems.push(item);
         continue;
       }
-      batch.push({ ...item, user_id: systemUserId, imported: true });
+      batch.push(item);
       if (batch.length >= BATCH_SIZE) await flush();
     }
     await flush();
+    if (dryRun) {
+      if (doEnrich) await enrich(dryItems.slice(0, 50)); // sample only, to keep dry runs cheap
+      for (const item of dryItems) {
+        console.log(`  [${item.type}/${item.category}] ${item.title} (${item.source_license}, ${item.original_author})`);
+      }
+      dryItems.length = 0;
+    }
     console.log(`  ${sourceCount} unique items from ${source.name}`);
   }
 
   console.log(
     `\nDone. Seen ${seen}, unique ${seenHashes.size}` +
-      (dryRun ? ' (dry run, nothing written).' : `, sent to database ${sent}. Existing rows were left unchanged.`)
+      (dryRun
+        ? ' (dry run, nothing written).'
+        : `, ${alreadyPresent} already in the database, sent ${sent} new.`)
   );
 }
 
