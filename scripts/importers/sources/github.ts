@@ -142,8 +142,11 @@ async function* promptFiles(repo: RepoInfo, files: string[]): AsyncGenerator<Imp
 }
 
 async function* agentFiles(repo: RepoInfo, files: string[]): AsyncGenerator<ImportItem> {
-  // Claude Code subagents: markdown with name/description/tools frontmatter
-  for (const file of files.filter(f => /(^|\/)agents\/.+\.md$/i.test(f) && !/readme/i.test(f))) {
+  // Claude Code subagents: markdown with name/description/tools frontmatter,
+  // under agents/ (wshobson/agents) or categories/ (VoltAgent)
+  for (const file of files.filter(
+    f => /(^|\/)(agents|categories)\/.+\.md$/i.test(f) && !/(readme|contributing|changelog)/i.test(f)
+  )) {
     const text = await rawFile(repo, file);
     if (!text) continue;
     const { data, body } = parseFrontmatter(text);
