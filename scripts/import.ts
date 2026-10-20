@@ -120,7 +120,8 @@ async function main() {
 
     // ignoreDuplicates keeps this safe if a row appears between the lookup and the insert.
     const { error } = await supabase.from('prompts').upsert(
-      fresh.map(item => ({ ...item, user_id: systemUserId, imported: true })),
+      // Bulk inserts null-fill keys missing from some rows, so set the not-null array explicitly.
+      fresh.map(item => ({ ...item, agent_tools: item.agent_tools ?? [], user_id: systemUserId, imported: true })),
       { onConflict: 'content_hash', ignoreDuplicates: true }
     );
     if (error) console.error(`\n  batch failed: ${error.message}`);
